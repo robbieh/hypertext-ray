@@ -14,7 +14,6 @@
             :visible (visible? e)
             :xpath (xpath e) })
 
-
 (defn forms-info []
   (for [e (find-elements [{:tag :form}])]
     (form-info e)))

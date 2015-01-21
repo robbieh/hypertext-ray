@@ -2,10 +2,6 @@
   (:use [clj-webdriver.taxi] [hypertext-ray.login :only [do-login]])
   )
 
-(defn start-driver [siteinfo]
-  (let [url (:url siteinfo) ]
-    (set-driver!  {:browser :chrome} url))
-    siteinfo)
 (comment 
   
   

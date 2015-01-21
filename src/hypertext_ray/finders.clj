@@ -102,6 +102,7 @@
   (for [input (find-elements-under form {:tag :input})] 
     {:class (apply classify-element input input-re-map flags)
      :text (text input)
+     :value (value input)
      :xpath (xpath input) }))
 
 (defn classify-form-inputs [form]
