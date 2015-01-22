@@ -1,44 +1,21 @@
 (ns hypertext-ray.login
   (:use clj-webdriver.taxi hypertext-ray.finders hypertext-ray.re-maps)
 ;  (:require [hypertext-ray.finders :refer [classify-forms classify-urls]])
+  (:import org.openqa.selenium.StaleElementReferenceException)
   )
 
-(defn click-login []
-  (let [login-a (filter #(= (:class %) :login ) (classify-elements {:tag :a} anchor-re-map)) 
-        visible-a (filter visible? (map #(find-element {:xpath (:xpath %)}) login-a)) ]
-    (try (click (first visible-a)) (catch Exception e :exception)) ))
+(def logatom (atom []))
+(defn logit [msg] (swap! logatom conj msg ))
 
-(defn switch-to-login-frame []
-  (let [frame (first (filter #(= (:class %) :login) (classify-elements {:tag :iframe} form-re-map)))]
-    (try (switch-to-frame frame) (catch Exception e :exception))) )
 
-(defn get-login-form 
-  "Try to find a login form. If one isn't found, 
-  try to find a 'login' type link and follow it 
-  and search for the form again.
-  Returns xpath of form or else nil"
-  [] 
-  (let [result 
-        (loop [stop 3]
-          (if (zero? stop) nil
-          (let [form (first (filter #(= (:class %) :login) (classify-forms)))]
-            (if-not (empty? form) 
-              form
-              (let [click-result (click-login)]
-                (if #(= :exception click-result) (switch-to-login-frame)) 
-                (Thread/sleep 2000)
-                (recur (dec stop))))))
-          )]
-    (when result (:xpath result))
-    )
-)
+
 
 (defn generate-action-by-type [xp tagmatch]
   (let [input-type (attribute (to-element xp) :type)]
     (case input-type
       "text" tagmatch
       "password" tagmatch
-      "submit" nil
+      "submit" submit
       "checkbox" (case tagmatch
                        :true #(if-not (selected? %) (click %))
                        :false #(if (selected? %) (click %))
@@ -55,37 +32,81 @@
                                    )))]
     query-action-map))
 
-(defn classify-visible-form-inputs [xp]
+(defn classify-visible-form-inputs [e]
   (map #(vector (classify-element % input-re-map )(xpath %)) 
-                    (filter-visible (find-elements-under (find-element {:xpath xp}) {:tag :input})))
+                    (filter-visible (find-elements-under e {:tag :input})))
   )
 
+
+(defn find-login-form [] 
+  (try (if-let [form (first (filter-visible (map #(to-element (:xpath %)) (filter #(= (:class %) :login) (classify-forms)))))] 
+    form)
+    (catch Exception e (.printStackTrace e) nil)))
+(defn find-login-link []   
+  (try (let [login-a (filter #(= (:class %) :login ) (classify-elements {:tag :a} anchor-re-map))] 
+        (if-let [a (first (filter visible? (map #(find-element {:xpath (:xpath %)}) login-a)))]
+          (element a)))
+    (catch Exception e (.printStackTrace e) nil)))
+(defn find-login-frame []
+  (try (if-let [frame (first (filter #(= (:class %) :login ) (classify-elements {:tag :iframe} form-re-map)))]
+    (element frame))
+    (catch Exception e (.printStackTrace e) nil))) 
+
+(defn add-submit-action [qa-maps inputs]
+  (if-not (first (filter #(= submit (second %)) qa-maps))
+    (concat qa-maps 
+            (vector 
+              (if-let [pwfield (second (first (filter #(= :pass (first %)) inputs)))] 
+                {(to-element pwfield) submit}
+                {(first (mapcat keys qa-maps)) submit})))
+  qa-maps))
+
+(defn fill-and-submit [siteinfo]
+  (logit "starting fill and submit")
+  (loop [stop 2]
+    (Thread/sleep 1000)
+    (if (zero? stop) nil
+      (do
+        (if-let [form (find-login-form)]
+          (let [inputs (classify-visible-form-inputs form)
+                query-action-map (get-query-action-map siteinfo inputs)
+                submit-map (add-submit-action query-action-map inputs)
+                ]
+            (try (apply quick-fill-submit submit-map)
+              (catch org.openqa.selenium.StaleElementReferenceException e (.printStackTrace e) nil)) )
+          (logit "no form")) 
+        (recur (dec stop))))))
+
 (defn do-login [siteinfo]
-  (let [
-        loginform (get-login-form)
-        inputs    (classify-visible-form-inputs loginform)
-        query-action-map (get-query-action-map siteinfo inputs)]
-       
-        (apply quick-fill query-action-map)  
-        (submit (first (keys (first query-action-map))))
-  ) 
+  (logit "do-login start")
+  (loop [stop 3]
+    (logit (str "login try:" stop))
+    (if (zero? stop) nil
+      (if-let [form (find-login-form)] (fill-and-submit siteinfo)
+        (do
+          (if-let [link (find-login-link)] (do (logit (str "Clicking:" link)) (click link))
+            (if-let [frame (find-login-frame)] (do (logit (str "Focus on frame:" frame)) (switch-to-frame frame))))
+          (Thread/sleep 1000)
+          (recur (dec stop))))))
   siteinfo
   )
 
 (comment
-  (quick-fill-submit  
-         (submit (first (keys (first (get-query-action-map
-   (hypertext-ray.navigation/get-siteinfo :foo)
-   (classify-visible-form-inputs (get-login-form))))))))
-  (map #(attribute % :type) (find-elements-under (element {:xpath (get-login-form)}) {:tag :input}))
-  (map #(attribute % :type) (filter-visible (find-elements-under (element {:xpath (get-login-form)}) {:tag :input})))
-  (map #(classify-element % input-re-map :return-map) (filter-visible (find-elements-under (element {:xpath (get-login-form)}) {:tag :input})))
 
-  (-> (System/getProperty "user.home") (str "/.webscrape") slurp read-string :accounts :ing)
-  (do-login (-> (System/getProperty "user.home") (str "/.webscrape") slurp read-string :accounts :github))
- (remove #(= :unknown (:class %)) (classify-anchors)) 
-  (classify-inputs (to-element (get-login-form)) :return-map) 
-  (classify-element (to-element "/html/body/div/div/form/div[3]/input") input-re-map )
-  (get-attributes-plus (to-element "/html/body/div/div/form/div[3]/input") )
+    (find-elements [{:tag :form}])
+  (filter-visible (find-elements-under (find-login-form) {:tag :input}))
+  (classify-form-inputs (find-login-form))
+  (logit "Test")
+  (classify-forms)
+  (identity @logatom)
+  (let [siteinfo (hypertext-ray.navigation/get-siteinfo :foo)]
+    (if-let [form (find-login-form)]
+      (let [inputs (classify-visible-form-inputs form)
+;            query-action-map (get-query-action-map siteinfo inputs)
+;            submit-map (add-submit-action query-action-map inputs)
+            ]
+        ;(apply quick-fill-submit submit-map)
+        inputs
+        )
+      ))
   )
-
