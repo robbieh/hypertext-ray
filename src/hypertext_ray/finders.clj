@@ -100,10 +100,10 @@
 
 (defn classify-inputs [form & flags]
   (for [input (find-elements-under form {:tag :input})] 
-    {:class (apply classify-element input input-re-map flags)
-     :text (text input)
-     :value (value input)
-     :xpath (xpath input) }))
+    (if #(= "password" (attribute input :type))
+     {:class :pass :text (text input) :value (value input) :xpath (xpath input) } 
+     {:class (apply classify-element input input-re-map flags)
+      :text (text input) :value (value input) :xpath (xpath input)})))
 
 (defn classify-form-inputs [form]
   (for [input (find-elements-under form {:tag :input})]
