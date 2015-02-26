@@ -8,7 +8,10 @@
 (defn failsafe-attribute 
   "Attempts to read given attribute's value from HTML element.
   Returns nil instead of NullPointerException if this fails." 
-  [e attr] (try (attribute e attr) (catch NullPointerException e nil)))
+  [e attr] (try (attribute e attr) 
+             (catch NullPointerException e nil)
+             (catch IllegalArgumentException e nil)
+             ))
 
 (defn failsafe-text [e] (failsafe-attribute e :text))
 
@@ -35,6 +38,7 @@
 (defn find-table-rows [e] (find-elements-under e {:tag :tr})) 
 (defn find-header-cells [e] (find-elements-under e {:tag :th}))
 (defn find-row-cells [e] (find-elements-under e {:tag :td}))
+(defn find-header-or-data-cells [e] (find-elements-under e {:xpath ".//*[local-name(.)='th' or local-name(.)='td']"}))
 
 (defn extract-table-data 
   "Given a table element, returns a map with :headers and :cells"
@@ -123,3 +127,104 @@
       (if (some #(= :return-map %) flags)
         combo
         {:class best :xpath (xpath form)}))))
+
+
+; 
+(comment defn get-cell 
+  "gets cell at r,c from table t, but returns nil if the cell doesn't exist"
+  [t r c]
+  (try
+    (find-table-cell t [r c])
+    (catch org.openqa.selenium.NoSuchElementException e nil)))
+
+(comment defn match-cell [t [r c] re]
+  (let [data (failsafe-text (get-cell t r c))]
+    (println r c data)
+    (when data (re-matches re data))))
+
+(defn measure-table
+  "returns [rows, columns] of table"
+  [t]
+  (let [rows (find-table-rows t)]
+    [(count rows) 
+     (apply max (for [r rows]
+      (count (find-header-or-data-cells r))))]))
+
+(defn list-table 
+  "Returns a nested list structure representing the table"
+  [t]
+  (let [[rows, cols] (measure-table t)]
+    (for [r (find-table-rows t)]
+      (for [c (find-header-or-data-cells r)]
+        (failsafe-text c)))))
+
+
+(defn some-what 
+  "works like some, but returns the value which satisfied the predicate"
+  [pred coll]
+  (when (seq coll)
+    (or (if (pred (first coll)) (first coll)) (recur pred (next coll)))))
+
+(defn index-table-text
+  "return a map with keys have [x,y] vectors as the keys, values are text of table"
+  [t]
+  (apply merge (for [[i r] (map vector (range) (find-table-rows t))]
+    (apply merge (for [[j c] (map vector (range) (find-header-or-data-cells r))] 
+      {[i j] (failsafe-text c)})))))
+
+(defn index-tables []
+  (for [t (find-elements [{:tag :table}])]
+    (map vector (range) (index-table-text t))
+    )
+  )
+
+(defn match? [re x]
+  (try
+    (if (re-matches re x) true false)
+    (catch NullPointerException e false) ))
+
+(defn search-table [t re]
+  (let [itable (index-table-text t)]
+    (some-what #(match? re (last %)) itable)
+    ) )
+
+(defn find-cell-by-coordinate [[x,y]]
+  (println "cell at:" x y)
+  )
+
+(defn find-cell-by-offset [[x,y] re]
+  (println "looking for" re " and then " x y)
+  (let [match (search-table )])
+  )
+
+;location should be like:
+;[:offset [x,y]]
+;[x,y]
+(defn find-table-cell-by-location [location re]
+  (case (first location)
+    :offset (find-cell-by-offset (first (rest location)) re)
+    (find-cell-by-coordinate location)
+    )
+  )
+
+(defn dispatch-location [location re]  
+  (case (first location)
+    :table (find-table-cell-by-location (rest location) re)
+    :miss)
+    )
+
+;To be used to find a bit of data in a page
+;Cases to cover...
+; * specific clj-webdriver queries
+; * specific table cells by regex
+; * table cell relative to another known cell (defn find-data [sitedata location re]
+; * entire table, based on some match
+; and then it should add a :results section to the siteinfo map
+; which contains a map of keynames and scraped data
+(defn find-data [siteinfo page]
+  (let [items (page (:datamatcher siteinfo))]
+    (for [[keyname item] items]
+      (let [[location re] item]
+        (dispatch-location location re)
+        ))))
+

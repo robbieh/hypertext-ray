@@ -9,6 +9,8 @@
 
 (defn get-siteinfo [sitehandle]
   (-> (System/getProperty "user.home") (str "/.webscrape") slurp read-string :accounts sitehandle))
+(defn get-siteconfig [id]
+  (-> (System/getProperty "user.home") (str "/.embellir/config/accounts-" id ".rc") slurp read-string ))
 
 ;(set (map :class (classify-elements {:tag :a} anchor-re-map)))
 
@@ -28,4 +30,39 @@
         (Thread/sleep 2000)
         (submit searchfield)
         ) ) ))
+
+
+(defn element-match? [e re-list]
+   (some true?  (for [re re-list] ((complement nil?) (re-matches re (text e))))) )
+
+(defn str-match? [s re-list]
+  (some true? (for [re re-list] ((complement nil?) (re-matches re s))))) 
+
+(defn match-elements [[q re-list]]
+  (case q
+    :title (str-match? (title) re-list)
+    (reduce = true (pmap #(element-match? % re-list) (find-elements q)))
+    )
+  )
+(defn match-page'
+  [siteinfo]
+  (for [[k v] (:pagematchers siteinfo)]
+    [k (first (map match-elements (partition 2 v)))]
+    )
+  )
+
+(defn match-page 
+  ""
+  [siteinfo]
+  (let [results (match-page' siteinfo)]
+    (first (first (filter #(true? (last %)) results))))
+  
+  )
+
+(comment
+  (as-> (get-siteconfig "gng") s 
+      (match-page (:pagematchers s))
+      )
+  
+  )
 
