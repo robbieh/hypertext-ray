@@ -130,8 +130,7 @@
 
 
 ; 
-;
-;
+; below here, mainly functions dealing with extracting data
 ;
 
 (def itables (atom nil)) ;vector of indexed tables for current page
