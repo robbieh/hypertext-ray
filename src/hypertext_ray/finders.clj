@@ -130,6 +130,12 @@
 
 
 ; 
+;
+;
+;
+
+(def itables (atom nil)) ;vector of indexed tables for current page
+
 (comment defn get-cell 
   "gets cell at r,c from table t, but returns nil if the cell doesn't exist"
   [t r c]
@@ -158,6 +164,7 @@
       (for [c (find-header-or-data-cells r)]
         (failsafe-text c)))))
 
+(def ffilter (comp first filter))
 
 (defn some-what 
   "works like some, but returns the value which satisfied the predicate"
@@ -174,9 +181,7 @@
 
 (defn index-tables []
   (for [t (find-elements [{:tag :table}])]
-    (map vector (range) (index-table-text t))
-    )
-  )
+    (index-table-text t)))
 
 (defn match? [re x]
   (try
@@ -184,32 +189,39 @@
     (catch NullPointerException e false) ))
 
 (defn search-table [t re]
-  (let [itable (index-table-text t)]
-    (some-what #(match? re (last %)) itable)
-    ) )
+    (ffilter #(match? re (last %)) t))
 
-(defn find-cell-by-coordinate [[x,y]]
-  (println "cell at:" x y)
-  )
+(defn find-cell-by-coordinate [coords]
+  (println "finding cell by coordinate:" coords)
+  (let [candidates (ffilter #(get % coords ) @itables)]
+    (second (first (remove #(nil? (second %)) candidates)))
+    ))
 
-(defn find-cell-by-offset [[x,y] re]
-  (println "looking for" re " and then " x y)
-  (let [match (search-table )])
-  )
+(defn find-cell-by-offset [coords re]
+  (println "finding cell by offset:" coords re)
+  (let [match  (map #(vector (second %) (search-table (first %) re)) (map vector @itables (range)))
+        match (first (remove #(nil? (second %)) match)) ]
+    (println "matched:" match)
+    (when-let [matchedcoords (get-in match [1 0])]
+      (let [newcoords (mapv + coords matchedcoords)]
+        (println newcoords)
+        (get (nth @itables (first match)) newcoords)))))
 
 ;location should be like:
 ;[:offset [x,y]]
 ;[x,y]
-(defn find-table-cell-by-location [location re]
+(defn find-table-cell-by-location [location]
+  (println "finding table cell by location" location )
   (case (first location)
-    :offset (find-cell-by-offset (first (rest location)) re)
-    (find-cell-by-coordinate location)
+    :offset (find-cell-by-offset (first (rest location)) (last location))
+    (find-cell-by-coordinate (first location))
     )
   )
 
-(defn dispatch-location [location re]  
+(defn dispatch-location [location]  
+  (println "dispatching" location)
   (case (first location)
-    :table (find-table-cell-by-location (rest location) re)
+    :table (find-table-cell-by-location (rest location))
     :miss)
     )
 
@@ -222,9 +234,9 @@
 ; and then it should add a :results section to the siteinfo map
 ; which contains a map of keynames and scraped data
 (defn find-data [siteinfo page]
-  (let [items (page (:datamatcher siteinfo))]
+  (reset! itables (index-tables))
+  (assoc siteinfo :data (into {} (let [items (page (:datamatcher siteinfo))]
     (for [[keyname item] items]
-      (let [[location re] item]
-        (dispatch-location location re)
-        ))))
+        [keyname (dispatch-location item)]
+        )))))
 
