@@ -7,6 +7,12 @@
     (set-driver!  {:browser :chrome} url))
     siteinfo)
 
+(defn stop-driver [siteinfo]
+  (println "stopping driver")
+  (quit)
+  (assoc siteinfo :done true)
+  )
+
 (defn get-siteinfo [sitehandle]
   (-> (System/getProperty "user.home") (str "/.webscrape") slurp read-string :accounts sitehandle))
 (defn get-siteconfig [id]
