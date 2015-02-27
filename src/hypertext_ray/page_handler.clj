@@ -13,7 +13,7 @@
     :wait (do (println "wait") siteinfo)
     :collect-data (find-data siteinfo current-page)
     :logout (do (println "logout") siteinfo)
-    :quit (do (println "quit") siteinfo)
+    :quit (stop-driver siteinfo)
     )
   )
 
@@ -26,3 +26,17 @@
     )
   )
 
+
+(defn handle-site [siteinfo]
+  (let [siteatom (atom siteinfo)]
+    (reset! siteatom (-> @siteatom start-driver))
+    (loop [x 10]
+      (when (and (> x 0) (not (true? (:done @siteatom))))
+        (reset! siteatom (-> @siteatom handle-page))
+        (recur (dec x))
+        )
+      )
+    
+  @siteatom
+    )
+  )
