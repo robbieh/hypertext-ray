@@ -171,6 +171,13 @@
   (when (seq coll)
     (or (if (pred (first coll)) (first coll)) (recur pred (next coll)))))
 
+(defn structured-table-text
+  "return nested vectors with text of table"
+  [t]
+  (apply vector (for [[i r] (map vector (range) (find-table-rows t))]
+    (apply vector (for [[j c] (map vector (range) (find-header-or-data-cells r))] 
+       (failsafe-text c))))))
+
 (defn index-table-text
   "return a map with keys have [x,y] vectors as the keys, values are text of table"
   [t]
@@ -184,7 +191,7 @@
 
 (defn match? [re x]
   (try
-    (if (re-matches re x) true false)
+    (if (re-matches re (clojure.string/replace x "\n" "")) true false)
     (catch NullPointerException e false) ))
 
 (defn search-table [t re]
@@ -206,13 +213,20 @@
         (println newcoords)
         (get (nth @itables (first match)) newcoords)))))
 
+(defn find-table-entire [re]
+  (println "finding entire table with match" re)
+  (let [match (first (filter-class :match (classify-elements {:tag :table} {:match [re]})))]
+    (when match (structured-table-text match)) ))
+
+
 ;location should be like:
 ;[:offset [x,y]]
 ;[x,y]
-(defn find-table-cell-by-location [location]
-  (println "finding table cell by location" location )
+(defn find-table-data-by-location [location]
+  (println "finding table data by location" location )
   (case (first location)
-    :offset (find-cell-by-offset (first (rest location)) (last location))
+    :offset (find-cell-by-offset (second location) (last location))
+    :entire (find-table-entire (second location))
     (find-cell-by-coordinate (first location))
     )
   )
@@ -220,7 +234,7 @@
 (defn dispatch-location [location]  
   (println "dispatching" location)
   (case (first location)
-    :table (find-table-cell-by-location (rest location))
+    :table (find-table-data-by-location (rest location))
     :miss)
     )
 

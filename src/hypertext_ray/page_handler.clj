@@ -8,13 +8,15 @@
 
 (defn action-dispatch [siteinfo action current-page]
   (println "action:" action "page:" current-page)
-  (case action
-    :login (do-login siteinfo)
-    :wait (do (println "wait") siteinfo)
-    :collect-data (find-data siteinfo current-page)
-    :logout (do (println "logout") siteinfo)
-    :quit (stop-driver siteinfo)
-    )
+  (let [choice  (if (vector? action) (first action) action)]
+    (case choice
+      :login (do-login siteinfo)
+      :wait (do (println "wait") siteinfo)
+      :collect-data (find-data siteinfo current-page)
+      :logout (do (println "logout") siteinfo)
+      :quit (stop-driver siteinfo)
+      :click-text (do (click-text (second action)) siteinfo)
+      ))
   )
 
 (defn handle-page [siteinfo]
