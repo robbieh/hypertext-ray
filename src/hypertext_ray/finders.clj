@@ -248,7 +248,7 @@
 ; which contains a map of keynames and scraped data
 (defn find-data [siteinfo page]
   (reset! itables (index-tables))
-  (assoc siteinfo :data (into {} (let [items (page (:datamatcher siteinfo))]
+  (assoc siteinfo :data (merge (:data siteinfo) (let [items (page (:datamatcher siteinfo))]
     (for [[keyname item] items]
         [keyname (dispatch-location item)]
         )))))

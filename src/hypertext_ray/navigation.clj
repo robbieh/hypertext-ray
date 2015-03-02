@@ -4,6 +4,7 @@
 
 (defn start-driver [siteinfo]
   (let [url (:url siteinfo) ]
+    (println "starting driver for url" url)
     (set-driver!  {:browser :chrome} url))
     siteinfo)
 
