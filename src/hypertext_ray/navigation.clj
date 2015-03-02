@@ -45,7 +45,7 @@
 (defn match-elements [[q re-list]]
   (case q
     :title (str-match? (title) re-list)
-    (pmap #(vector (element-match? % re-list)) (find-elements q))
+    (some true? (pmap #(element-match? % re-list) (find-elements q)))
     )
   )
 
