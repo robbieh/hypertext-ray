@@ -20,8 +20,9 @@
                        :true #(if-not (selected? %) (click %))
                        :false #(if (selected? %) (click %))
                        nil) 
-      ))
-  )
+      "image" nil
+      )
+    ))
 
 (defn get-query-action-map [siteinfo inputs]
   (let [query-action-map (remove #(apply nil? (vals %)) (remove empty? 
