@@ -27,6 +27,21 @@
   (let [found (first (filter-class :match (classify-elements {:tag :a} {:match [re]})))]
     (when found (-> found :xpath to-element click))))
 
+(defn click-anchor [re]
+  (println "clicking anchor matching" re)
+  (let [elements (find-elements {:tag :a})
+        match (first (remove #(nil? (second %)) 
+                             (for [e elements]
+                               [e (or
+                                    (re-matches re (or (attribute e :href) ""))
+                                    (re-matches re (or (attribute e :class) ""))
+                                    )])))
+        ]
+  (when match (click (first match)))
+
+    )
+  )
+
 (defn search [text]
   (let [form (->> (classify-forms) (filter-class :search) first)]
     (when (not (nil? form))
@@ -38,7 +53,13 @@
 
 
 (defn element-match? [e re-list]
-  (some true?  (for [re re-list] ((complement nil?) (re-matches re (text e))))) )
+  (some true?  (for [re re-list
+                     at (map second (get-attributes-plus e))
+                     ] 
+                 (do
+                   ((complement nil?) (re-matches re at))))) 
+  
+  )
 
 (defn str-match? [s re-list]
   (some true? (for [re re-list] ((complement nil?) (re-matches re s))))) 
@@ -46,7 +67,7 @@
 (defn match-elements [[q re-list]]
   (case q
     :title (str-match? (title) re-list)
-    (some true? (pmap #(element-match? % re-list) (find-elements q)))
+    (some true? (map #(element-match? % re-list) (filter visible? (find-elements q))))
     )
   )
 
