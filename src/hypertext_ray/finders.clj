@@ -30,7 +30,7 @@
                                     [(keyword a) (attribute e (keyword a))])))
 
 (defn get-attributes-plus 
-  "Returns attributes of element along with (text e) and (value e)"
+  "Returns map of attributes of element along with (text e) and (value e)"
   [e] (merge (get-attributes e)
              (hash-map :text (text e) :value (text e)))
   )
@@ -231,11 +231,22 @@
     )
   )
 
+(defn matches-attribute? [e re]
+  (first (remove nil? (map #(re-matches re %) (vals (get-attributes-plus e)))))
+  )
+
+(defn find-data-by-q-and-re [q re attr]
+  (let [match (first (filter #(matches-attribute? % re) (find-elements q)))]
+    (when match (attribute match attr))
+    )
+  )
+
 (defn dispatch-location [location]  
   (println "dispatching" location)
   (case (first location)
     :table (find-table-data-by-location (rest location))
-    :miss)
+    (apply find-data-by-q-and-re location)
+    )
     )
 
 ;To be used to find a bit of data in a page
@@ -248,8 +259,8 @@
 ; which contains a map of keynames and scraped data
 (defn find-data [siteinfo page]
   (reset! itables (index-tables))
-  (assoc siteinfo :data (merge (:data siteinfo) (let [items (page (:datamatcher siteinfo))]
+  (assoc siteinfo :data (merge (:data siteinfo) (into {} (let [items (page (:datamatcher siteinfo))]
     (for [[keyname item] items]
         [keyname (dispatch-location item)]
-        )))))
+        ))))))
 
